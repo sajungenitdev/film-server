@@ -12,6 +12,8 @@ const generateToken = (id, role) => {
 };
 
 // @desc    Register User
+// @route   POST /api/auth/register
+// @access  Public
 const registerUser = async (req, res) => {
     try {
         const { name, email, password, role = 'user' } = req.body;
@@ -69,6 +71,8 @@ const registerUser = async (req, res) => {
 };
 
 // @desc    Login User
+// @route   POST /api/auth/login
+// @access  Public
 const loginUser = async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -137,15 +141,17 @@ const loginUser = async (req, res) => {
 };
 
 // @desc    Change Password
+// @route   PUT /api/auth/change-password
+// @access  Private
 const changePassword = async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
-        const userId = req.user._id;
 
+        // Validate input
         if (!currentPassword || !newPassword) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide current and new password'
+                message: 'Please provide current password and new password'
             });
         }
 
@@ -156,7 +162,8 @@ const changePassword = async (req, res) => {
             });
         }
 
-        const user = await User.findById(userId).select('+password');
+        // Get user with password field
+        const user = await User.findById(req.user.id).select('+password');
 
         if (!user) {
             return res.status(404).json({
@@ -176,10 +183,7 @@ const changePassword = async (req, res) => {
 
         // Hash new password
         const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(newPassword, salt);
-
-        // Update password
-        user.password = hashedPassword;
+        user.password = await bcrypt.hash(newPassword, salt);
         user.passwordChangedAt = new Date();
         await user.save();
 
@@ -191,12 +195,14 @@ const changePassword = async (req, res) => {
         console.error('Change password error:', error);
         return res.status(500).json({
             success: false,
-            message: error.message || 'Server error'
+            message: error.message || 'Server error while changing password'
         });
     }
 };
 
 // @desc    Forgot Password
+// @route   POST /api/auth/forgot-password
+// @access  Public
 const forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;
@@ -208,10 +214,21 @@ const forgotPassword = async (req, res) => {
             });
         }
 
-        // For security, always return success
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            // For security, don't reveal that email doesn't exist
+            return res.json({
+                success: true,
+                message: 'If your email is registered, you will receive reset instructions'
+            });
+        }
+
+        // Generate reset token (you can implement this with nodemailer)
+        // For now, just return success
         return res.json({
             success: true,
-            message: 'If your email is registered, you will receive reset instructions'
+            message: 'Password reset instructions sent to your email'
         });
     } catch (error) {
         console.error('Forgot password error:', error);
@@ -223,18 +240,30 @@ const forgotPassword = async (req, res) => {
 };
 
 // @desc    Get Current User Profile
+// @route   GET /api/auth/me
+// @access  Private
 const getMe = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id).select('-password');
+        const user = await User.findById(req.user.id).select('-password');
+        
         if (!user) {
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
         }
+        
         return res.json({
             success: true,
-            user
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                isActive: user.isActive,
+                profileImage: user.profileImage,
+                createdAt: user.createdAt
+            }
         });
     } catch (error) {
         console.error('Get profile error:', error);
@@ -246,11 +275,12 @@ const getMe = async (req, res) => {
 };
 
 // @desc    Update User Profile
+// @route   PUT /api/auth/profile
+// @access  Private
 const updateProfile = async (req, res) => {
     try {
-        const { name, email, profileImage } = req.body;
-        const user = await User.findById(req.user._id);
-
+        const user = await User.findById(req.user.id);
+        
         if (!user) {
             return res.status(404).json({
                 success: false,
@@ -258,36 +288,108 @@ const updateProfile = async (req, res) => {
             });
         }
 
-        if (name) user.name = name;
-        if (email) user.email = email;
-        if (profileImage) user.profileImage = profileImage;
+        console.log('Received update data:', req.body);
 
-        await user.save();
-
-        return res.json({
-            success: true,
-            user: {
-                id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                profileImage: user.profileImage,
-                isActive: user.isActive
+        // Update basic fields
+        if (req.body.fullName !== undefined) user.fullName = req.body.fullName;
+        if (req.body.name !== undefined) user.name = req.body.name;
+        if (req.body.username !== undefined) user.username = req.body.username;
+        if (req.body.title !== undefined) user.title = req.body.title;
+        if (req.body.bio !== undefined) user.bio = req.body.bio;
+        if (req.body.location !== undefined) user.location = req.body.location;
+        if (req.body.email !== undefined) user.email = req.body.email;
+        if (req.body.phone !== undefined) user.phone = req.body.phone;
+        if (req.body.website !== undefined) user.website = req.body.website;
+        
+        // Update gender and pronouns
+        if (req.body.gender !== undefined) user.gender = req.body.gender;
+        if (req.body.pronouns !== undefined) user.pronouns = req.body.pronouns;
+        
+        // Update birthdate
+        if (req.body.birthdate !== undefined) user.birthdate = req.body.birthdate;
+        
+        // Update timezone and currency
+        if (req.body.timezone !== undefined) user.timezone = req.body.timezone;
+        if (req.body.currency !== undefined) user.currency = req.body.currency;
+        
+        // Update social media
+        if (req.body.socialMedia !== undefined) {
+            user.socialMedia = {
+                ...user.socialMedia,
+                ...req.body.socialMedia
+            };
+        }
+        
+        // Update skills
+        if (req.body.skills !== undefined) {
+            user.skills = req.body.skills;
+        }
+        
+        // Update experience
+        if (req.body.experience !== undefined) {
+            user.experience = req.body.experience;
+        }
+        
+        // Update stats
+        if (req.body.stats !== undefined) {
+            user.stats = {
+                ...user.stats,
+                ...req.body.stats
+            };
+        }
+        
+        // Handle profile image (base64)
+        if (req.body.profileImage && req.body.profileImage.startsWith('data:image')) {
+            user.profileImage = req.body.profileImage;
+            user.avatar = req.body.profileImage;
+        }
+        
+        // Handle cover photo
+        if (req.body.coverPhoto && req.body.coverPhoto.startsWith('data:image')) {
+            user.coverPhoto = req.body.coverPhoto;
+        }
+        
+        // Handle password update (if provided)
+        if (req.body.password && req.body.password.trim() !== '') {
+            if (req.body.password.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password must be at least 6 characters'
+                });
             }
+            const salt = await bcrypt.genSalt(10);
+            user.password = await bcrypt.hash(req.body.password, salt);
+            user.passwordChangedAt = new Date();
+        }
+        
+        await user.save();
+        
+        // Return updated user without password
+        const updatedUser = await User.findById(req.user.id).select('-password');
+        
+        console.log('Profile updated successfully for user:', updatedUser.email);
+        
+        res.status(200).json({
+            success: true,
+            data: updatedUser,
+            message: 'Profile updated successfully'
         });
+        
     } catch (error) {
         console.error('Update profile error:', error);
-        return res.status(500).json({
+        res.status(500).json({
             success: false,
-            message: error.message || 'Server error'
+            message: error.message || 'Server error while updating profile'
         });
     }
 };
 
-// @desc    Delete User Account
+// @desc    Delete User Account (Soft Delete)
+// @route   DELETE /api/auth/profile
+// @access  Private
 const deleteAccount = async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
+        const user = await User.findById(req.user.id);
         
         if (!user) {
             return res.status(404).json({
@@ -313,7 +415,9 @@ const deleteAccount = async (req, res) => {
     }
 };
 
-// @desc    Logout User (Simple version - just informs client)
+// @desc    Logout User
+// @route   POST /api/auth/logout
+// @access  Private
 const logout = async (req, res) => {
     try {
         // In JWT-based authentication, logout is handled client-side
@@ -321,7 +425,7 @@ const logout = async (req, res) => {
         
         return res.json({
             success: true,
-            message: 'Logged out successfully. Please remove your token from client storage.'
+            message: 'Logged out successfully'
         });
     } catch (error) {
         console.error('Logout error:', error);

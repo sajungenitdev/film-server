@@ -13,6 +13,8 @@ connectDB();
 // Route files
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 const app = express();
 
@@ -49,6 +51,9 @@ app.get('/health', (req, res) => {
 // Mount routers
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use(express.json({ limit: '50mb' }));
 
 // 404 handler
 app.use((req, res) => {

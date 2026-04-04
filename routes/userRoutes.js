@@ -5,25 +5,22 @@ const {
   updateUser,
   deleteUser,
   getDashboardStats,
+  getCurrentUserProfile,
+  updateCurrentUserProfile
 } = require("../controllers/userController");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
-const {
-  getMe,
-  updateProfile,
-  deleteAccount,
-} = require("../controllers/authController");
+const { changePassword } = require("../controllers/authController");
 
 const router = express.Router();
 
 // Profile routes for authenticated users (no admin required)
-router.get("/profile", protect, getMe);
-router.put("/profile", protect, updateProfile);
-router.delete("/profile", protect, deleteAccount);
+router.get("/profile", protect, getCurrentUserProfile);
+router.put("/profile", protect, updateCurrentUserProfile);
+router.put("/change-password", protect, changePassword);
 
 // Stats route for authenticated users
 router.get("/stats", protect, async (req, res) => {
   try {
-    // Return user stats (adjust based on your models)
     res.json({
       success: true,
       data: {
@@ -39,13 +36,10 @@ router.get("/stats", protect, async (req, res) => {
 });
 
 // Admin only routes
-router.use(protect);
-router.use(adminOnly);
-
-router.get("/dashboard/stats", getDashboardStats);
-router.get("/", getAllUsers);
-router.get("/:id", getUserById);
-router.put("/:id", updateUser);
-router.delete("/:id", deleteUser);
+router.get("/dashboard/stats", protect, adminOnly, getDashboardStats);
+router.get("/", protect, adminOnly, getAllUsers);
+router.get("/:id", protect, adminOnly, getUserById);
+router.put("/:id", protect, adminOnly, updateUser);
+router.delete("/:id", protect, adminOnly, deleteUser);
 
 module.exports = router;
