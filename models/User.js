@@ -305,7 +305,6 @@ userSchema.methods.isLocked = function() {
     return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
-// Method to increment login attempts
 userSchema.methods.incrementLoginAttempts = async function() {
     if (this.lockUntil && this.lockUntil < Date.now()) {
         await this.updateOne({
