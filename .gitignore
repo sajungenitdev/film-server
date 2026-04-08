@@ -20,10 +20,7 @@ out/
 .next/
 
 # Database files
-# *.db
-# *.sqlite
-# *.sqlite3
-# *.mongodb
+
 
 # Logs
 logs/
@@ -128,9 +125,7 @@ Desktop.ini
 *.pid
 
 # Application specific
-# *.env
-# .env.*
-# !.env.example
+
 
 # API keys and secrets
 *.key
